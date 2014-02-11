@@ -74,8 +74,6 @@ private:
   void incomingUpdate(const map_msgs::OccupancyGridUpdateConstPtr& update);
   void reconfigureCB(costmap_2d::GenericPluginConfig &config, uint32_t level);
 
-  unsigned char interpretValue(unsigned char value);
-
   std::string global_frame_; ///< @brief The global frame for the costmap
   bool subscribe_to_updates_;
   bool map_received_;

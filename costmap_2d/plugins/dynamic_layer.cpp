@@ -85,22 +85,9 @@ void DynamicLayer::matchSize()
             master->getOriginX(), master->getOriginY());
 }
 
-unsigned char DynamicLayer::interpretValue(unsigned char value)
-{
-  //check if the static value is above the unknown or lethal thresholds
-  if (track_unknown_space_ && value == unknown_cost_value_)
-    return NO_INFORMATION;
-  else if (value >= lethal_threshold_)
-    return LETHAL_OBSTACLE;
-  else if (trinary_costmap_)
-    return FREE_SPACE;
-
-  double scale = (double) value / lethal_threshold_;
-  return scale * LETHAL_OBSTACLE;
-}
-
 void DynamicLayer::incomingMap(const nav_msgs::OccupancyGridConstPtr& new_map)
 {
+  // incoming map is a costmap2d
   unsigned int size_x = new_map->info.width, size_y = new_map->info.height;
 
   ROS_DEBUG("Received a %d X %d map at %f m/pix", size_x, size_y, new_map->info.resolution);
@@ -131,8 +118,7 @@ void DynamicLayer::incomingMap(const nav_msgs::OccupancyGridConstPtr& new_map)
   {
     for (unsigned int j = 0; j < size_x; ++j)
     {
-      unsigned char value = new_map->data[index];
-      costmap_[index] = interpretValue(value);
+      costmap_[index] = new_map->data[index];
       ++index;
     }
   }
@@ -152,7 +138,7 @@ void DynamicLayer::incomingUpdate(const map_msgs::OccupancyGridUpdateConstPtr& u
         for (unsigned int x = 0; x < update->width ; x++)
         {
             unsigned int index = index_base + x + update->x;
-            costmap_[index] = interpretValue( update->data[di++] );
+            costmap_[index] = update->data[di++];
         }
     }
     x_ = update->x;
