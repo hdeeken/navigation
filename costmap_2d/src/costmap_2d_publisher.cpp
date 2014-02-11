@@ -44,8 +44,8 @@ namespace costmap_2d
 
 char* Costmap2DPublisher::cost_translation_table_ = NULL;
 
-Costmap2DPublisher::Costmap2DPublisher(ros::NodeHandle * ros_node, Costmap2D* costmap, std::string global_frame, std::string topic_name, bool always_send_full_costmap) :
-    node(ros_node), costmap_(costmap), global_frame_(global_frame), active_(false), always_send_full_costmap_(always_send_full_costmap)
+Costmap2DPublisher::Costmap2DPublisher(ros::NodeHandle * ros_node, Costmap2D* costmap, std::string global_frame, std::string topic_name, bool always_send_full_costmap, bool publish_raw_data) :
+    node(ros_node), costmap_(costmap), global_frame_(global_frame), active_(false), always_send_full_costmap_(always_send_full_costmap), publish_raw_data_(publish_raw_data)
 {
   costmap_pub_ = ros_node->advertise<nav_msgs::OccupancyGrid>( topic_name, 1, boost::bind( &Costmap2DPublisher::onNewSubscription, this, _1 ));
   costmap_update_pub_ = ros_node->advertise<map_msgs::OccupancyGridUpdate>( topic_name + "_updates", 1 );
@@ -102,9 +102,18 @@ void Costmap2DPublisher::prepareGrid()
   grid_.data.resize(grid_.info.width * grid_.info.height);
 
   unsigned char* data = costmap_->getCharMap();
-  for (unsigned int i = 0; i < grid_.data.size(); i++)
+  if (publish_raw_data_)
   {
-    grid_.data[i] = cost_translation_table_[ data[ i ]];
+    for (unsigned int i = 0; i < grid_.data.size(); i++)
+    {
+      grid_.data[i] = data[ i ];
+    }
+  }
+  else{
+    for (unsigned int i = 0; i < grid_.data.size(); i++)
+    {
+      grid_.data[i] = cost_translation_table_[ data[ i ]];
+    }
   }
 }
 
@@ -131,12 +140,24 @@ void Costmap2DPublisher::publishCostmap()
     update.data.resize(update.width * update.height);
 
     unsigned int i = 0;
-    for (unsigned int y = y0_; y < yn_; y++)
+    if (publish_raw_data_)
     {
-      for (unsigned int x = x0_; x < xn_; x++)
+      for (unsigned int y = y0_; y < yn_; y++)
       {
-        unsigned char cost = costmap_->getCost(x, y);
-        update.data[i++] = cost_translation_table_[ cost ];
+        for (unsigned int x = x0_; x < xn_; x++)
+        {
+          update.data[i++] = costmap_->getCost(x, y);
+        }
+      }
+    }
+    else{
+      for (unsigned int y = y0_; y < yn_; y++)
+      {
+        for (unsigned int x = x0_; x < xn_; x++)
+        {
+          unsigned char cost = costmap_->getCost(x, y);
+          update.data[i++] = cost_translation_table_[ cost ];
+        }
       }
     }
     costmap_update_pub_.publish(update);

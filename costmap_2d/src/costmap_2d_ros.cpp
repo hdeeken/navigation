@@ -77,6 +77,7 @@ Costmap2DROS::Costmap2DROS(std::string name, tf::TransformListener& tf) :
   // get two frames
   private_nh.param("global_frame", global_frame_, std::string("/map"));
   private_nh.param("robot_base_frame", robot_base_frame_, std::string("base_link"));
+  private_nh.param("publish_raw_data", publish_raw_data_, false);
 
   // make sure that we set the frames appropriately based on the tf_prefix
   global_frame_ = tf::resolve(tf_prefix, global_frame_);
@@ -138,7 +139,7 @@ Costmap2DROS::Costmap2DROS(std::string name, tf::TransformListener& tf) :
 
   readFootprintFromParams( private_nh );
 
-  publisher_ = new Costmap2DPublisher(&private_nh, layered_costmap_->getCostmap(), global_frame_, "costmap");
+  publisher_ = new Costmap2DPublisher(&private_nh, layered_costmap_->getCostmap(), global_frame_, "costmap", false, publish_raw_data_);
 
   // create a thread to handle updating the map
   stop_updates_ = false;
