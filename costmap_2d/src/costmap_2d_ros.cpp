@@ -111,53 +111,17 @@ Costmap2DROS::Costmap2DROS(std::string name, tf::TransformListener& tf) :
 
   if (private_nh.hasParam("plugins"))
   {
-    
     XmlRpc::XmlRpcValue my_list;
     private_nh.getParam("plugins", my_list);
-    ROS_INFO("Initialize LayeredCostmap %s with %d layers", name.c_str(), my_list.size());
-
     for (int32_t i = 0; i < my_list.size(); ++i)
     {
       std::string pname = static_cast<std::string>(my_list[i]["name"]);
       std::string type = static_cast<std::string>(my_list[i]["type"]);
-
       ROS_INFO("Using plugin \"%s\"", pname.c_str());
 
       boost::shared_ptr<Layer> plugin = plugin_loader_.createInstance(type);
       layered_costmap_->addPlugin(plugin);
-      
-      if(my_list[i].hasMember("footprint"))
-      { 
-        ROS_INFO("Footprint set."); 
-       
-        XmlRpc::XmlRpcValue& footprint = my_list[i]["footprint"];
-   
-        std::string footprint_str = my_list[i]["footprint"].toXml();
-        ROS_WARN("The 'footprint' parameter for the plugins named %s is set. We will use individual footprint: %s.", pname.c_str(), footprint_str.c_str());
-        std::vector<geometry_msgs::Point> footprint_points;
-        if(readFootprintFromXMLRPC(footprint, name + "/" + pname, footprint_points))
-        {
-          plugin->initialize(layered_costmap_, name + "/" + pname, footprint_points, &tf_);
-        }
-        else
-        {
-          ROS_ERROR("Could not parse footprint %s of plugin %s.", footprint_str.c_str(), pname.c_str());
-          plugin->initialize(layered_costmap_, name + "/" + pname, &tf_); //set fp, if any
-        }
-      }
-      else
-      {
-        ROS_INFO("No footprint set.");
-        plugin->initialize(layered_costmap_, name + "/" + pname, &tf_); //set fp, if any
-      }
-      
-      //prepare layer publishing
-      costmap_2d::CostmapLayer* layer_costmap = dynamic_cast<costmap_2d::CostmapLayer*>(&(*plugin));
-      if(layer_costmap != 0)
-      {
-		ROS_INFO("Add publisher for %s", pname.c_str());
-		layer_publisher_.push_back(new costmap_2d::Costmap2DPublisher(&private_nh, layer_costmap, global_frame_, pname + "_layer"));
-      }
+      plugin->initialize(layered_costmap_, name + "/" + pname, &tf_);
     }
   }
 
@@ -352,7 +316,7 @@ void Costmap2DROS::readFootprintFromConfig( const costmap_2d::Costmap2DConfig &n
   }
 }
 
-bool Costmap2DROS::readFootprintFromString( const std::string& footprint_string , std::vector<geometry_msgs::Point>& points)
+bool Costmap2DROS::readFootprintFromString( const std::string& footprint_string )
 {
   std::string error;
   std::vector<std::vector<float> > vvf = parseVVF( footprint_string, error );
@@ -369,7 +333,7 @@ bool Costmap2DROS::readFootprintFromString( const std::string& footprint_string 
     ROS_ERROR( "You must specify at least three points for the robot footprint, reverting to previous footprint." );
     return false;
   }
-
+  std::vector<geometry_msgs::Point> points;
   points.reserve( vvf.size() );
   for( unsigned int i = 0; i < vvf.size(); i++ )
   {
@@ -388,20 +352,9 @@ bool Costmap2DROS::readFootprintFromString( const std::string& footprint_string 
       return false;
     }
   }
-}
 
-bool Costmap2DROS::readFootprintFromString( const std::string& footprint_string )
-{
-  std::vector<geometry_msgs::Point> points;
-  if(readFootprintFromString(footprint_string, points))
-  {
-    setUnpaddedRobotFootprint(points);
-    return true;
-  }
-  else
-  {
-    return false;
-  }
+  setUnpaddedRobotFootprint( points );
+  return true;
 }
 
 void Costmap2DROS::setFootprintFromRadius( double radius )
@@ -492,8 +445,8 @@ double getNumberFromXMLRPC( XmlRpc::XmlRpcValue& value, const std::string& full_
   return value.getType() == XmlRpc::XmlRpcValue::TypeInt ? (int)(value) : (double)(value);
 }
 
-bool Costmap2DROS::readFootprintFromXMLRPC( XmlRpc::XmlRpcValue& footprint_xmlrpc,
-                                            const std::string& full_param_name,   std::vector<geometry_msgs::Point>& footprint)
+void Costmap2DROS::readFootprintFromXMLRPC( XmlRpc::XmlRpcValue& footprint_xmlrpc,
+                                            const std::string& full_param_name )
 {
   // Make sure we have an array of at least 3 elements.
   if( footprint_xmlrpc.getType() != XmlRpc::XmlRpcValue::TypeArray ||
@@ -502,9 +455,9 @@ bool Costmap2DROS::readFootprintFromXMLRPC( XmlRpc::XmlRpcValue& footprint_xmlrp
     ROS_FATAL( "The footprint must be specified as list of lists on the parameter server, %s was specified as %s",
                full_param_name.c_str(), std::string( footprint_xmlrpc ).c_str() );
     throw std::runtime_error( "The footprint must be specified as list of lists on the parameter server with at least 3 points eg: [[x1, y1], [x2, y2], ..., [xn, yn]]");
-    return false;
   }
 
+  std::vector<geometry_msgs::Point> footprint;  
   geometry_msgs::Point pt;
 
   for( int i = 0; i < footprint_xmlrpc.size(); ++i )
@@ -517,7 +470,6 @@ bool Costmap2DROS::readFootprintFromXMLRPC( XmlRpc::XmlRpcValue& footprint_xmlrp
       ROS_FATAL( "The footprint (parameter %s) must be specified as list of lists on the parameter server eg: [[x1, y1], [x2, y2], ..., [xn, yn]], but this spec is not of that form.",
                  full_param_name.c_str() );
       throw std::runtime_error( "The footprint must be specified as list of lists on the parameter server eg: [[x1, y1], [x2, y2], ..., [xn, yn]], but this spec is not of that form" );
-      return false;
     }
        
     pt.x = getNumberFromXMLRPC( point[ 0 ], full_param_name );
@@ -526,22 +478,7 @@ bool Costmap2DROS::readFootprintFromXMLRPC( XmlRpc::XmlRpcValue& footprint_xmlrp
     footprint.push_back( pt );
   }
 
-   return true;
-}
-
-void Costmap2DROS::readFootprintFromXMLRPC( XmlRpc::XmlRpcValue& footprint_xmlrpc,
-                                            const std::string& full_param_name )
-{
-  std::vector<geometry_msgs::Point> points;
-  if(readFootprintFromXMLRPC(footprint_xmlrpc, full_param_name, points))
-  {
-    setUnpaddedRobotFootprint(points);
-    //return true;
-  }
-  else
-  {
-     //return false;
-  }
+  setUnpaddedRobotFootprint( footprint );
 }
 
 double sign(double x){

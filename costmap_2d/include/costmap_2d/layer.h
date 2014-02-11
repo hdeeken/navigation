@@ -53,9 +53,6 @@ public:
 
   void initialize( LayeredCostmap* parent, std::string name, tf::TransformListener *tf );
 
-  void initialize( LayeredCostmap* parent, std::string name, std::vector<geometry_msgs::Point> footprint, tf::TransformListener *tf );
-
-
   virtual void updateBounds(double robot_x, double robot_y, double robot_yaw, double* min_x, double* min_y,
                              double* max_x, double* max_y) {}
   virtual void updateCosts(Costmap2D& master_grid, int min_i, int min_j, int max_i, int max_j) {}

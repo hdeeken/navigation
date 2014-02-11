@@ -180,7 +180,7 @@ void ObstacleLayer::onInitialize()
   }
 
   setupDynamicReconfigure(nh);
-  footprint_layer_.initialize( layered_costmap_, name_ + "_footprint", getFootprint(), tf_);
+  footprint_layer_.initialize( layered_costmap_, name_ + "_footprint", tf_);
 }
 
 void ObstacleLayer::setupDynamicReconfigure(ros::NodeHandle& nh)

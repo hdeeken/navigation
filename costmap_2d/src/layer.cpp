@@ -40,12 +40,6 @@ Layer::Layer()
   , tf_(NULL)
 {}
 
-void Layer::initialize( LayeredCostmap* parent, std::string name, std::vector<geometry_msgs::Point> footprint, tf::TransformListener *tf )
-{
-  footprint_spec_ = footprint;
-  initialize(parent, name, tf);
-}
-
 void Layer::initialize( LayeredCostmap* parent, std::string name, tf::TransformListener *tf )
 {
   layered_costmap_ = parent;
@@ -56,16 +50,7 @@ void Layer::initialize( LayeredCostmap* parent, std::string name, tf::TransformL
 
 const std::vector<geometry_msgs::Point>& Layer::getFootprint() const
 {
-  if(!footprint_spec_.empty())
-  {
-    //this layer has a individual footprint
-      return footprint_spec_;
-  }
-  else
-  {
-    //this layer has no individual footprint we fall back to the layered costmap's footprint 
-    return layered_costmap_->getFootprint();
-  } 
+  return layered_costmap_->getFootprint();
 }
 
 } // end namespace costmap_2d
