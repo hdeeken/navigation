@@ -38,6 +38,7 @@
 #include "costmap_2d/array_parser.h"
 #include <costmap_2d/layered_costmap.h>
 #include <costmap_2d/costmap_2d_ros.h>
+#include <costmap_2d/costmap_layer.h>
 #include <cstdio>
 #include <string>
 #include <algorithm>
@@ -554,10 +555,21 @@ void Costmap2DROS::mapUpdateLoop(double frequency)
       layered_costmap_->getBounds(&x0, &xn, &y0, &yn);
       publisher_->updateBounds(x0, xn, y0, yn);
 
+      for(int i = 0; i < layer_publisher_.size(); i++)
+      {
+			layer_publisher_[i]->updateBounds(x0, xn, y0, yn);
+	  } 
+
       ros::Time now = ros::Time::now();
       if (last_publish_ + publish_cycle < now)
       {
         publisher_->publishCostmap();
+        
+        for(int i = 0; i < layer_publisher_.size(); i++)
+        {
+			layer_publisher_[i]->publishCostmap();
+		} 
+        
         last_publish_ = now;
       }
     }
