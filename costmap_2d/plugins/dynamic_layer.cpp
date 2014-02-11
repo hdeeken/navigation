@@ -1,4 +1,4 @@
-#include<costmap_2d/static_layer.h>
+#include<costmap_2d/dynamic_layer.h>
 #include<costmap_2d/costmap_math.h>
 #include <pluginlib/class_list_macros.h>
 
@@ -11,7 +11,7 @@ using costmap_2d::FREE_SPACE;
 namespace costmap_2d
 {
 
-DynamicLayer::StaticLayer() : dsrv_(NULL) {}
+DynamicLayer::DynamicLayer() : dsrv_(NULL) {}
 
 void DynamicLayer::onInitialize()
 {
