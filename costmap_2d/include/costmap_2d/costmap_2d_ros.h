@@ -236,6 +236,13 @@ private:
    * @return true on success, false on failure. */
   bool readFootprintFromString( const std::string& footprint_string );
 
+  /** @brief Set the footprint from the given string.
+   *
+   * Format should be bracketed array of arrays of floats, like so: [[1.0, 2.2], [3.3, 4.2], ...] 
+   * @return true on success, false on failure. */
+
+  bool readFootprintFromString( const std::string& footprint_string , std::vector<geometry_msgs::Point>& points);
+
   /** @brief Set the footprint from the new_config object.
    *
    * If the values of footprint and robot_radius are the same in
@@ -264,6 +271,14 @@ private:
    * reporting errors. */
   void readFootprintFromXMLRPC( XmlRpc::XmlRpcValue& footprint_xmlrpc,
                                 const std::string& full_param_name );
+
+
+   /** @param full_param_name this is the full name of the rosparam from
+   * which the footprint_xmlrpc value came.  It is used only for
+   * reporting errors. */
+
+   bool readFootprintFromXMLRPC( XmlRpc::XmlRpcValue& footprint_xmlrpc,
+                                            const std::string& full_param_name,   std::vector<geometry_msgs::Point>& footprint   );
 
   /** @brief Write the current unpadded_footprint_ to the "footprint"
    * parameter of the given NodeHandle so that dynamic_reconfigure
