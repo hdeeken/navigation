@@ -46,6 +46,12 @@
 #include <geometry_msgs/Polygon.h>
 #include <dynamic_reconfigure/server.h>
 #include <pluginlib/class_loader.h>
+#include <moveit/planning_scene_monitor/planning_scene_monitor.h>
+#include <moveit/robot_model/link_model.h>
+
+#include <geometric_shapes/shapes.h>
+#include <geometric_shapes/mesh_operations.h>
+#include <opencv/cv.h>
 
 class SuperValue : public XmlRpc::XmlRpcValue
 {
@@ -228,6 +234,8 @@ protected:
   std::string global_frame_;  ///< @brief The global frame for the costmap
   std::string robot_base_frame_;  ///< @brief The frame_id of the robot base
   double transform_tolerance_; ///< timeout before transform errors
+  std::string footprint_type_;
+  std::vector<std::string> footprint_links_;
 
 private:
   /** @brief Set the footprint from the given string.
@@ -242,6 +250,9 @@ private:
    * new_config and old_config, nothing is changed. */
   void readFootprintFromConfig( const costmap_2d::Costmap2DConfig &new_config,
                                 const costmap_2d::Costmap2DConfig &old_config );
+
+  bool readFootprintLinks( const ros::NodeHandle& nh );
+  void getConvexHull( std::vector<shapes::Mesh*>& meshes, std::vector<geometry_msgs::Point>& convex_polygon);
 
   /** @brief Set the footprint to a circle of the given radius, in meters. */
   void setFootprintFromRadius( double radius );

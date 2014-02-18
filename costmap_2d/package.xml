@@ -37,6 +37,12 @@
     <build_depend>tf</build_depend>
     <build_depend>visualization_msgs</build_depend>
     <build_depend>voxel_grid</build_depend>
+    <build_depend>shapes</build_depend>
+    <build_depend>moveit_core</build_depend>
+    <build_depend>moveit_ros_planning</build_depend>
+    <build_depend>moveit_geometric_shapes</build_depend>
+    <build_depend>orocos_kdl</build_depend>
+    <build_depend>opencv</build_depend>
 
     <run_depend>dynamic_reconfigure</run_depend>
     <run_depend>geometry_msgs</run_depend>
@@ -56,6 +62,12 @@
     <run_depend>tf</run_depend>
     <run_depend>visualization_msgs</run_depend>
     <run_depend>voxel_grid</run_depend>
+    <run_depend>shapes</run_depend>
+    <run_depend>moveit_core</run_depend>
+    <run_depend>moveit_geometry_shapes</run_depend>
+    <run_depend>moveit_ros_planning</run_depend>
+    <run_depend>orocos_kdl</run_depend>
+    <run_depend>opencv</run_depend>
 
     <test_depend>map_server</test_depend>
     <test_depend>rosbag</test_depend>

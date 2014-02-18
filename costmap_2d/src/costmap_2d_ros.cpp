@@ -62,10 +62,10 @@ void move_parameter(ros::NodeHandle& old_h, ros::NodeHandle& new_h, std::string 
 }
 
 Costmap2DROS::Costmap2DROS(std::string name, tf::TransformListener& tf) :
-    layered_costmap_(NULL), name_(name), tf_(tf), stop_updates_(false), initialized_(true), stopped_(false), robot_stopped_(
-        false), map_update_thread_(NULL), last_publish_(0), plugin_loader_("costmap_2d",
-                                                                           "costmap_2d::Layer"), publisher_(
-        NULL)
+  layered_costmap_(NULL), name_(name), tf_(tf), stop_updates_(false), initialized_(true), stopped_(false), robot_stopped_(
+      false), map_update_thread_(NULL), last_publish_(0), plugin_loader_("costmap_2d",
+        "costmap_2d::Layer"), publisher_(
+          NULL)
 {
   ros::NodeHandle private_nh("~/" + name);
   ros::NodeHandle g_nh;
@@ -77,7 +77,89 @@ Costmap2DROS::Costmap2DROS(std::string name, tf::TransformListener& tf) :
   // get two frames
   private_nh.param("global_frame", global_frame_, std::string("/map"));
   private_nh.param("robot_base_frame", robot_base_frame_, std::string("base_link"));
+
+  // publish the raw data
   private_nh.param("publish_raw_data", publish_raw_data_, false);
+
+
+  // ################################
+  // reads the footpinrt informations
+
+  // defines the footprint type; 
+  const std::string type_dynamic("dynamic");
+  const std::string type_static("static");
+  const std::string type_manual("manual");
+  const std::string type_topic("topic");
+
+  // defines the footprint type, default is 'manual'. 
+  private_nh.param("footprint_type_", footprint_type_, type_manual );
+
+  // dynamic and static footprint via the robot model 
+
+
+  if(footprint_type_.compare(type_dynamic) == 0 || footprint_type_.compare(type_static) == 0 )
+  {
+    if(readFootprintLinks(private_nh))
+    {
+      std::string robot_description("robot_description");
+      planning_scene_monitor::PlanningSceneMonitor psm(robot_description);
+      robot_model::RobotModelConstPtr rm_ptr = psm.getRobotModel();      
+      if(rm_ptr != NULL){
+        const moveit::core::LinkModel* linkmodel_ptr;
+        std::vector<shapes::Mesh*> meshes;
+        for(std::vector<std::string>::iterator it = footprint_links_.begin(); it != footprint_links_.end(); ++it)
+        {
+          linkmodel_ptr = rm_ptr->getLinkModel(*it);
+          if(linkmodel_ptr == NULL)
+          {
+            ROS_WARN("The LinkModel '%s' was not found!", it->c_str());
+            continue;
+          }
+          std::vector <shapes::ShapeConstPtr> shapes = linkmodel_ptr->getShapes();
+          for(std::vector<shapes::ShapeConstPtr>::iterator shape_iter = shapes.begin();
+              shape_iter != shapes.end(); ++shape_iter)
+          {
+            meshes.push_back(shapes::createMeshFromShape(&**shape_iter));
+          }
+        }
+        std::vector<geometry_msgs::Point> convex_polygon;
+        getConvexHull(meshes, convex_polygon);
+        setUnpaddedRobotFootprint(convex_polygon);
+
+        ROS_INFO("Footprint links loaded.");
+      }
+      else
+      {
+        ROS_ERROR("No robot model found! foe the robot describption '%s'", robot_description.c_str());
+      }
+    }
+    else
+    {
+      ROS_ERROR("Failed to load the footprint links!");
+    }
+  }
+  // footprint via topic
+  else if(footprint_type_.compare(type_topic) == 0)
+  {
+    // subscribe to the footprint topic
+    std::string topic;
+    if(private_nh.getParam("footprint_topic", topic))
+    {
+      footprint_sub_ = private_nh.subscribe(topic, 1, &Costmap2DROS::setUnpaddedRobotFootprintPolygon, this);
+    }
+    else
+    {
+      ROS_ERROR("footprint type is set to: 'topic', but no 'footprint_topic' is defined!");
+    }
+  }
+  // static footprint via the defined polygon in the parameter file
+  else if(footprint_type_.compare(type_manual) == 0)
+  {
+    readFootprintFromParams( private_nh );
+  }
+
+  // #################################
+
 
   // make sure that we set the frames appropriately based on the tf_prefix
   global_frame_ = tf::resolve(tf_prefix, global_frame_);
@@ -88,13 +170,13 @@ Costmap2DROS::Costmap2DROS(std::string name, tf::TransformListener& tf) :
   // we need to make sure that the transform between the robot base frame and the global frame is available
   while (ros::ok()
       && !tf_.waitForTransform(global_frame_, robot_base_frame_, ros::Time(), ros::Duration(0.1), ros::Duration(0.01),
-                               &tf_error))
+        &tf_error))
   {
     ros::spinOnce();
     if (last_error + ros::Duration(5.0) < ros::Time::now())
     {
       ROS_WARN("Waiting on transform from %s to %s to become available before running costmap, tf error: %s",
-               robot_base_frame_.c_str(), global_frame_.c_str(), tf_error.c_str());
+          robot_base_frame_.c_str(), global_frame_.c_str(), tf_error.c_str());
       last_error = ros::Time::now();
     }
   }
@@ -127,18 +209,6 @@ Costmap2DROS::Costmap2DROS(std::string name, tf::TransformListener& tf) :
     }
   }
 
-  // subscribe to the footprint topic
-  std::string topic_param, topic;
-  if(!private_nh.searchParam("footprint_topic", topic_param))
-  {
-    topic_param = "footprint_topic";
-  }
-
-  private_nh.param(topic_param, topic, std::string("footprint"));
-  footprint_sub_ = private_nh.subscribe(topic, 1, &Costmap2DROS::setUnpaddedRobotFootprintPolygon, this);
-
-  readFootprintFromParams( private_nh );
-
   publisher_ = new Costmap2DPublisher(&private_nh, layered_costmap_->getCostmap(), global_frame_, "costmap", false, publish_raw_data_);
 
   // create a thread to handle updating the map
@@ -152,9 +222,96 @@ Costmap2DROS::Costmap2DROS(std::string name, tf::TransformListener& tf) :
 
   dsrv_ = new dynamic_reconfigure::Server<Costmap2DConfig>(ros::NodeHandle("~/" + name));
   dynamic_reconfigure::Server<Costmap2DConfig>::CallbackType cb = boost::bind(&Costmap2DROS::reconfigureCB, this, _1,
-                                                                              _2);
+      _2);
   dsrv_->setCallback(cb);
 }
+
+void Costmap2DROS::getConvexHull(std::vector<shapes::Mesh*>& mesh, std::vector<geometry_msgs::Point>& polygon){
+  polygon.clear();
+
+  std::vector<cv::Point> points;
+
+  for(std::vector<shapes::Mesh*>::iterator iter = mesh.begin();
+      iter != mesh.end(); ++iter)
+  {
+    if ((*iter)->vertex_count > 0 && (*iter)->triangle_count > 0) {
+      //const btTransform& trans = ls->getGlobalCollisionBodyTransform();
+      for (unsigned int i = 0; i < (*iter)->vertex_count; ++i) {
+        unsigned int i3 = i * 3;
+        //tf::Vector3 point3d((*iter)->vertices[i3], (*iter)->vertices[i3 + 1], (*iter)->vertices[i3 + 2]);
+        //point3d = trans * point3d;
+        cv::Point pt;
+        //pt.x = floor(point3d.x());
+        //pt.y = floor(point3d.y());
+        pt.x = (*iter)->vertices[i3];
+        pt.y = (*iter)->vertices[i3+1];
+        points.push_back(pt);
+      }
+    }
+  }
+
+  if (points.size() < 3) {
+    ROS_ERROR("Number of points from link meshes too small to compute footprint");
+    return;
+  }
+  std::vector<int> hull;
+  cv::convexHull(cv::Mat(points), hull);
+  ROS_INFO("Convex hull of footprint computed, %d points", (int)hull.size());
+
+  for (unsigned int i = 0; i < hull.size(); ++i) {
+    geometry_msgs::Point p;
+    p.x = points[hull[i]].x;
+    p.y = points[hull[i]].y;
+    p.z = 0;
+    polygon.push_back(p);
+  }
+}
+
+bool Costmap2DROS::readFootprintLinks( const ros::NodeHandle& nh )
+{
+  const std::string footprint_links_param("footprint_links");
+  const std::string links_name_param("name");
+
+  if (!nh.hasParam (footprint_links_param))
+  {
+    ROS_WARN ("No links specified for footprint computation (parameter~footprint_links).");
+    return false;
+  }
+  else
+  {
+    XmlRpc::XmlRpcValue xmlrpc_vals;
+    nh.getParam (footprint_links_param, xmlrpc_vals);
+    if (xmlrpc_vals.getType () != XmlRpc::XmlRpcValue::TypeArray){
+      ROS_WARN ("footprint_links need to be an array");
+      return false;
+    }
+    else if (xmlrpc_vals.size () == 0){
+      ROS_WARN ("No values in footprint_links array");
+      return false;
+    }  
+    else {
+      for (int i = 0; i < xmlrpc_vals.size (); ++i){
+        if (xmlrpc_vals[i].getType() != XmlRpc::XmlRpcValue::TypeStruct)
+        {
+          ROS_WARN ("Footprint links entry %d is not a structure!", i);
+          return false;
+        }
+        else if (!xmlrpc_vals[i].hasMember (links_name_param))
+        {
+          ROS_WARN ("Footprint links entry %d has no name!", i);
+          return false;
+        }
+        else
+        {
+          std::string name(xmlrpc_vals[i][links_name_param]);
+          footprint_links_.push_back(name);
+        }
+      }
+      return true;
+    }
+  }
+}
+
 
 void Costmap2DROS::setUnpaddedRobotFootprintPolygon( const geometry_msgs::Polygon& footprint )
 {
@@ -270,13 +427,13 @@ void Costmap2DROS::reconfigureCB(costmap_2d::Costmap2DConfig &config, uint32_t l
 
   // find size parameters
   double map_width_meters = config.width, map_height_meters = config.height, resolution = config.resolution, origin_x =
-             config.origin_x,
-         origin_y = config.origin_y;
+    config.origin_x,
+    origin_y = config.origin_y;
 
   if (!layered_costmap_->isSizeLocked())
   {
     layered_costmap_->resizeMap((unsigned int)(map_width_meters / resolution),
-                                (unsigned int)(map_height_meters / resolution), resolution, origin_x, origin_y);
+        (unsigned int)(map_height_meters / resolution), resolution, origin_x, origin_y);
   }
 
   // If the padding has changed, call setUnpaddedRobotFootprint() to
@@ -295,7 +452,7 @@ void Costmap2DROS::reconfigureCB(costmap_2d::Costmap2DConfig &config, uint32_t l
 }
 
 void Costmap2DROS::readFootprintFromConfig( const costmap_2d::Costmap2DConfig &new_config,
-                                            const costmap_2d::Costmap2DConfig &old_config )
+    const costmap_2d::Costmap2DConfig &old_config )
 {
   // Only change the footprint if footprint or robot_radius has
   // changed.  Otherwise we might overwrite a footprint sent on a
@@ -350,7 +507,7 @@ bool Costmap2DROS::readFootprintFromString( const std::string& footprint_string 
     else
     {
       ROS_ERROR( "Points in the footprint specification must be pairs of numbers.  Found a point with %d numbers.",
-                 int( vvf[ i ].size() ));
+          int( vvf[ i ].size() ));
       return false;
     }
   }
@@ -441,21 +598,21 @@ double getNumberFromXMLRPC( XmlRpc::XmlRpcValue& value, const std::string& full_
   {
     std::string& value_string = value;
     ROS_FATAL( "Values in the footprint specification (param %s) must be numbers. Found value %s.",
-               full_param_name.c_str(), value_string.c_str() );
+        full_param_name.c_str(), value_string.c_str() );
     throw std::runtime_error("Values in the footprint specification must be numbers");
   }
   return value.getType() == XmlRpc::XmlRpcValue::TypeInt ? (int)(value) : (double)(value);
 }
 
 void Costmap2DROS::readFootprintFromXMLRPC( XmlRpc::XmlRpcValue& footprint_xmlrpc,
-                                            const std::string& full_param_name )
+    const std::string& full_param_name )
 {
   // Make sure we have an array of at least 3 elements.
   if( footprint_xmlrpc.getType() != XmlRpc::XmlRpcValue::TypeArray ||
       footprint_xmlrpc.size() < 3 )
   {
     ROS_FATAL( "The footprint must be specified as list of lists on the parameter server, %s was specified as %s",
-               full_param_name.c_str(), std::string( footprint_xmlrpc ).c_str() );
+        full_param_name.c_str(), std::string( footprint_xmlrpc ).c_str() );
     throw std::runtime_error( "The footprint must be specified as list of lists on the parameter server with at least 3 points eg: [[x1, y1], [x2, y2], ..., [xn, yn]]");
   }
 
@@ -470,13 +627,13 @@ void Costmap2DROS::readFootprintFromXMLRPC( XmlRpc::XmlRpcValue& footprint_xmlrp
         point.size() != 2 )
     {
       ROS_FATAL( "The footprint (parameter %s) must be specified as list of lists on the parameter server eg: [[x1, y1], [x2, y2], ..., [xn, yn]], but this spec is not of that form.",
-                 full_param_name.c_str() );
+          full_param_name.c_str() );
       throw std::runtime_error( "The footprint must be specified as list of lists on the parameter server eg: [[x1, y1], [x2, y2], ..., [xn, yn]], but this spec is not of that form" );
     }
-       
+
     pt.x = getNumberFromXMLRPC( point[ 0 ], full_param_name );
     pt.y = getNumberFromXMLRPC( point[ 1 ], full_param_name );
-       
+
     footprint.push_back( pt );
   }
 
@@ -558,19 +715,19 @@ void Costmap2DROS::mapUpdateLoop(double frequency)
 
       for(int i = 0; i < layer_publisher_.size(); i++)
       {
-			layer_publisher_[i]->updateBounds(x0, xn, y0, yn);
-	  } 
+        layer_publisher_[i]->updateBounds(x0, xn, y0, yn);
+      } 
 
       ros::Time now = ros::Time::now();
       if (last_publish_ + publish_cycle < now)
       {
         publisher_->publishCostmap();
-        
+
         for(int i = 0; i < layer_publisher_.size(); i++)
         {
-			layer_publisher_[i]->publishCostmap();
-		} 
-        
+          layer_publisher_[i]->publishCostmap();
+        } 
+
         last_publish_ = now;
       }
     }
@@ -578,7 +735,7 @@ void Costmap2DROS::mapUpdateLoop(double frequency)
     // make sure to sleep for the remainder of our cycle time
     if (r.cycleTime() > ros::Duration(1 / frequency))
       ROS_WARN("Map update loop missed its desired rate of %.4fHz... the loop actually took %.4f seconds", frequency,
-               r.cycleTime().toSec());
+          r.cycleTime().toSec());
   }
 }
 
@@ -669,6 +826,7 @@ bool Costmap2DROS::getRobotPose(tf::Stamped<tf::Pose>& global_pose) const
   robot_pose.stamp_ = ros::Time();
   ros::Time current_time = ros::Time::now(); // save time for checking tf delay later
 
+
   //get the global pose of the robot
   try
   {
@@ -693,8 +851,8 @@ bool Costmap2DROS::getRobotPose(tf::Stamped<tf::Pose>& global_pose) const
   if (current_time.toSec() - global_pose.stamp_.toSec() > transform_tolerance_)
   {
     ROS_WARN_THROTTLE(1.0,
-                      "Costmap2DROS transform timeout. Current time: %.4f, global_pose stamp: %.4f, tolerance: %.4f",
-                      current_time.toSec(), global_pose.stamp_.toSec(), transform_tolerance_);
+        "Costmap2DROS transform timeout. Current time: %.4f, global_pose stamp: %.4f, tolerance: %.4f",
+        current_time.toSec(), global_pose.stamp_.toSec(), transform_tolerance_);
     return false;
   }
 

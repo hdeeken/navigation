@@ -18,8 +18,11 @@ find_package(catkin REQUIRED
             std_msgs
             tf
             voxel_grid
+            moveit_core
+            moveit_ros_planning
         )
-
+find_package(orocos_kdl REQUIRED)
+find_package(OpenCV REQUIRED)
 find_package(PCL REQUIRED)
 find_package(Eigen REQUIRED)
 find_package(Boost REQUIRED COMPONENTS system thread)
@@ -29,6 +32,8 @@ include_directories(
     ${EIGEN_INCLUDE_DIRS}
     ${PCL_INCLUDE_DIRS}
     ${Boost_INCLUDE_DIRS}
+    ${orocos_kdl_INCLUDE_DIRS}
+    ${OpenCV_INCLUDE_DIRS}
 )
 
 add_definitions(${EIGEN_DEFINITIONS})
@@ -77,10 +82,13 @@ catkin_package(
         std_msgs
         tf
         voxel_grid
+	moveit_core
+        moveit_ros_planning
     DEPENDS
         PCL
         Eigen
         Boost
+	OpenCV
 )
 
 add_library(costmap_2d
@@ -100,6 +108,8 @@ target_link_libraries(costmap_2d
   ${PCL_LIBRARIES}
   ${Boost_LIBRARIES}
   ${catkin_LIBRARIES}
+  ${OpenCV_LIBRARIES}
+  ${orocos_kdl_LIBRARIES}
 )
 
 add_library(layers
