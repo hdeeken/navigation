@@ -253,6 +253,7 @@ private:
 
   bool readFootprintLinks( const ros::NodeHandle& nh );
   void getConvexHull( std::vector<shapes::Mesh*>& meshes, std::vector<geometry_msgs::Point>& convex_polygon);
+  void writePolygonToSVG(std::vector<geometry_msgs::Point>& polygon, std::string& filename);
 
   /** @brief Set the footprint to a circle of the given radius, in meters. */
   void setFootprintFromRadius( double radius );

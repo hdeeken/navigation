@@ -164,11 +164,14 @@ Costmap2DROS::Costmap2DROS(std::string name, tf::TransformListener& tf) :
         }
         std::vector<geometry_msgs::Point> convex_polygon;
         getConvexHull(meshes, convex_polygon);
+
+        std::string filename = name_ + std::string("_footprint.svg");
+        writePolygonToSVG(convex_polygon, filename);
         setUnpaddedRobotFootprint(convex_polygon);
       }
       else
       {
-        ROS_ERROR("No robot model found! foe the robot describption '%s'", robot_description.c_str());
+        ROS_ERROR("No robot model for the robot describption '%s' found!", robot_description.c_str());
       }
     }
     else
@@ -235,6 +238,31 @@ Costmap2DROS::Costmap2DROS(std::string name, tf::TransformListener& tf) :
   dynamic_reconfigure::Server<Costmap2DConfig>::CallbackType cb = boost::bind(&Costmap2DROS::reconfigureCB, this, _1,
       _2);
   dsrv_->setCallback(cb);
+}
+
+void Costmap2DROS::writePolygonToSVG(std::vector<geometry_msgs::Point>& polygon, std::string& filename)
+{
+  if(polygon.size() < 3)
+  {
+    ROS_ERROR("Skip write polygon to svg, there are less then three points!");
+    return;
+  }
+  ofstream polyfile;
+  polyfile.open(filename.c_str());
+  polyfile << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" << endl <<
+    "<!DOCTYPE svg PUBLIC \"-//W3C//DTD SVG 1.1//EN\" \"http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd\">" << endl << 
+    "<svg xmlns=\"http://www.w3.org/2000/svg\" " <<
+    "xmlns:xlink=\"http://www.w3.org/1999/xlink\" xmlns:ev=\"http://www.w3.org/2001/xml-events\" " << 
+    "version=\"1.1\" baseProfile=\"full\">" << endl << endl;
+
+  polyfile << "<polygon points=\"";
+  for(int i=0; i<polygon.size()-1; i++)
+  { 
+    polyfile << polygon[i].x << " " << polygon[i].y << ", ";
+  }
+  polyfile << polygon[polygon.size()-1].x << " " << polygon[polygon.size()-1] << "\" style=\"fill:lime; stroke-width:0.01\"/>" << endl;
+  polyfile << "</svg>" << endl;
+  polyfile.close();
 }
 
 void Costmap2DROS::getConvexHull(std::vector<shapes::Mesh*>& mesh, std::vector<geometry_msgs::Point>& polygon){
