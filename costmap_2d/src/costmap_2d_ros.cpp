@@ -149,17 +149,27 @@ Costmap2DROS::Costmap2DROS(std::string name, tf::TransformListener& tf) :
             continue;
           }
           std::vector <shapes::ShapeConstPtr> shapes = linkmodel_ptr->getShapes();
+          int i = 0;
           for(std::vector<shapes::ShapeConstPtr>::iterator shape_iter = shapes.begin();
-              shape_iter != shapes.end(); ++shape_iter)
+              shape_iter != shapes.end(); ++shape_iter, i++)
           {
-            if((*shape_iter)->type != shapes::MESH)
+            const shapes::Shape* shape_ptr = &** shape_iter;
+            shapes::Mesh* mesh_ptr = 0;
+            if(shape_ptr->type != shapes::MESH)
             {
-                meshes.push_back(shapes::createMeshFromShape(&**shape_iter));
+              mesh_ptr = shapes::createMeshFromShape(shape_ptr);
             }
             else
             {
-                meshes.push_back((shapes::Mesh*)(&**shape_iter));
+              mesh_ptr = (shapes::Mesh*)shape_ptr;
             }
+            meshes.push_back(mesh_ptr);
+            std::vector<shapes::Mesh*> mesh_vector;
+            mesh_vector.push_back(mesh_ptr);
+            std::vector<geometry_msgs::Point> convex_of_mesh;
+            getConvexHull(mesh_vector, convex_of_mesh);
+            std::string filename_mesh = name_ + std::string("_convex_hull_link_") + boost::lexical_cast<std::string>(i) + std::string(".svg");
+            writePolygonToSVG(convex_of_mesh, filename_mesh);
           }
         }
         std::vector<geometry_msgs::Point> convex_polygon;
