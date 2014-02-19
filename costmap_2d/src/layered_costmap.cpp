@@ -146,6 +146,7 @@ bool LayeredCostmap::isCurrent()
 /** @brief Call setFootprint() on all plugins. */
 void LayeredCostmap::setFootprint(const std::vector<geometry_msgs::Point>& footprint_spec)
 {
+  ROS_INFO("LayeredCostmap: Start setFootprint()");
   footprint_ = footprint_spec;
   costmap_2d::calculateMinAndMaxDistances( footprint_spec, inscribed_radius_, circumscribed_radius_ );
 
@@ -154,6 +155,7 @@ void LayeredCostmap::setFootprint(const std::vector<geometry_msgs::Point>& footp
   {
     (*plugin)->onFootprintChanged();
   }  
+  ROS_INFO("LayeredCostmap: Done with setFootprint ()");
 }
 
 } // namespace layered_costmap

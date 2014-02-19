@@ -92,21 +92,25 @@ Costmap2DROS::Costmap2DROS(std::string name, tf::TransformListener& tf) :
   const std::string type_topic("topic");
 
   // defines the footprint type, default is 'manual'. 
-  private_nh.param("footprint_type_", footprint_type_, type_manual );
+  private_nh.param("footprint_type", footprint_type_, type_manual );
 
   // dynamic and static footprint via the robot model 
 
+   ROS_INFO("Type is %s", footprint_type_.c_str());
 
   if(footprint_type_.compare(type_dynamic) == 0 || footprint_type_.compare(type_static) == 0 )
   {
+   ROS_INFO("Type requires links");
     if(readFootprintLinks(private_nh))
     {
       std::string robot_description("robot_description");
       planning_scene_monitor::PlanningSceneMonitor psm(robot_description);
+
       robot_model::RobotModelConstPtr rm_ptr = psm.getRobotModel();      
       if(rm_ptr != NULL){
         const moveit::core::LinkModel* linkmodel_ptr;
         std::vector<shapes::Mesh*> meshes;
+
         for(std::vector<std::string>::iterator it = footprint_links_.begin(); it != footprint_links_.end(); ++it)
         {
           linkmodel_ptr = rm_ptr->getLinkModel(*it);
@@ -119,14 +123,19 @@ Costmap2DROS::Costmap2DROS(std::string name, tf::TransformListener& tf) :
           for(std::vector<shapes::ShapeConstPtr>::iterator shape_iter = shapes.begin();
               shape_iter != shapes.end(); ++shape_iter)
           {
-            meshes.push_back(shapes::createMeshFromShape(&**shape_iter));
+            if((*shape_iter)->type != shapes::MESH)
+            {
+                meshes.push_back(shapes::createMeshFromShape(&**shape_iter));
+            }
+            else
+            {
+                meshes.push_back((shapes::Mesh*)(&**shape_iter));
+            }
           }
         }
         std::vector<geometry_msgs::Point> convex_polygon;
         getConvexHull(meshes, convex_polygon);
         setUnpaddedRobotFootprint(convex_polygon);
-
-        ROS_INFO("Footprint links loaded.");
       }
       else
       {
@@ -157,9 +166,8 @@ Costmap2DROS::Costmap2DROS(std::string name, tf::TransformListener& tf) :
   {
     readFootprintFromParams( private_nh );
   }
-
+  ROS_INFO("Finished Footprint reading.");
   // #################################
-
 
   // make sure that we set the frames appropriately based on the tf_prefix
   global_frame_ = tf::resolve(tf_prefix, global_frame_);
@@ -168,6 +176,7 @@ Costmap2DROS::Costmap2DROS(std::string name, tf::TransformListener& tf) :
   ros::Time last_error = ros::Time::now();
   std::string tf_error;
   // we need to make sure that the transform between the robot base frame and the global frame is available
+
   while (ros::ok()
       && !tf_.waitForTransform(global_frame_, robot_base_frame_, ros::Time(), ros::Duration(0.1), ros::Duration(0.01),
         &tf_error))
@@ -229,7 +238,7 @@ Costmap2DROS::Costmap2DROS(std::string name, tf::TransformListener& tf) :
 void Costmap2DROS::getConvexHull(std::vector<shapes::Mesh*>& mesh, std::vector<geometry_msgs::Point>& polygon){
   polygon.clear();
 
-  std::vector<cv::Point> points;
+  std::vector<cv::Point2f> points;
 
   for(std::vector<shapes::Mesh*>::iterator iter = mesh.begin();
       iter != mesh.end(); ++iter)
@@ -240,7 +249,7 @@ void Costmap2DROS::getConvexHull(std::vector<shapes::Mesh*>& mesh, std::vector<g
         unsigned int i3 = i * 3;
         //tf::Vector3 point3d((*iter)->vertices[i3], (*iter)->vertices[i3 + 1], (*iter)->vertices[i3 + 2]);
         //point3d = trans * point3d;
-        cv::Point pt;
+        cv::Point2f pt;
         //pt.x = floor(point3d.x());
         //pt.y = floor(point3d.y());
         pt.x = (*iter)->vertices[i3];
@@ -250,13 +259,15 @@ void Costmap2DROS::getConvexHull(std::vector<shapes::Mesh*>& mesh, std::vector<g
     }
   }
 
+  ROS_INFO("Got %d points to compute footprint", points.size());
+
   if (points.size() < 3) {
     ROS_ERROR("Number of points from link meshes too small to compute footprint");
     return;
   }
   std::vector<int> hull;
-  cv::convexHull(cv::Mat(points), hull);
-  ROS_INFO("Convex hull of footprint computed, %d points", (int)hull.size());
+  cv::convexHull(points, hull);
+  ROS_INFO("Convex hull of footprint computed, %d points", (int) hull.size());
 
   for (unsigned int i = 0; i < hull.size(); ++i) {
     geometry_msgs::Point p;
@@ -264,6 +275,7 @@ void Costmap2DROS::getConvexHull(std::vector<shapes::Mesh*>& mesh, std::vector<g
     p.y = points[hull[i]].y;
     p.z = 0;
     polygon.push_back(p);
+    ROS_INFO("%d is %f , %f ", i, points[hull[i]].x, points[hull[i]].y);
   }
 }
 
@@ -546,6 +558,7 @@ void Costmap2DROS::readFootprintFromParams( ros::NodeHandle& nh )
     nh.getParam( full_param_name, footprint_xmlrpc );
     if( footprint_xmlrpc.getType() == XmlRpc::XmlRpcValue::TypeString )
     {
+
       if( readFootprintFromString( std::string( footprint_xmlrpc )))
       {
         writeFootprintToParam( nh );
@@ -615,7 +628,6 @@ void Costmap2DROS::readFootprintFromXMLRPC( XmlRpc::XmlRpcValue& footprint_xmlrp
         full_param_name.c_str(), std::string( footprint_xmlrpc ).c_str() );
     throw std::runtime_error( "The footprint must be specified as list of lists on the parameter server with at least 3 points eg: [[x1, y1], [x2, y2], ..., [xn, yn]]");
   }
-
   std::vector<geometry_msgs::Point> footprint;  
   geometry_msgs::Point pt;
 
@@ -636,7 +648,6 @@ void Costmap2DROS::readFootprintFromXMLRPC( XmlRpc::XmlRpcValue& footprint_xmlrp
 
     footprint.push_back( pt );
   }
-
   setUnpaddedRobotFootprint( footprint );
 }
 
@@ -656,7 +667,6 @@ void Costmap2DROS::setUnpaddedRobotFootprint( const std::vector<geometry_msgs::P
     pt.x += sign( pt.x ) * footprint_padding_;
     pt.y += sign( pt.y ) * footprint_padding_;
   }
-
   layered_costmap_->setFootprint( padded_footprint_ );
 }
 
@@ -804,7 +814,6 @@ void Costmap2DROS::resume()
   while (!initialized_)
     r.sleep();
 }
-
 
 void Costmap2DROS::resetLayers()
 {
