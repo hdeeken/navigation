@@ -247,6 +247,7 @@ void Costmap2DROS::writePolygonToSVG(std::vector<geometry_msgs::Point>& polygon,
     ROS_ERROR("Skip write polygon to svg, there are less then three points!");
     return;
   }
+  const double factor = 100.0;
   ofstream polyfile;
   polyfile.open(filename.c_str());
   polyfile << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" << endl <<
@@ -258,9 +259,9 @@ void Costmap2DROS::writePolygonToSVG(std::vector<geometry_msgs::Point>& polygon,
   polyfile << "<polygon points=\"";
   for(int i=0; i<polygon.size()-1; i++)
   { 
-    polyfile << polygon[i].x << " " << polygon[i].y << ", ";
+    polyfile << polygon[i].x * factor << " " << polygon[i].y * factor << ", ";
   }
-  polyfile << polygon[polygon.size()-1].x << " " << polygon[polygon.size()-1].y << "\" style=\"fill:lime; stroke-width:0.01\"/>" << endl;
+  polyfile << polygon[polygon.size()-1].x * factor << " " << polygon[polygon.size()-1].y * factor << "\" style=\"fill:lime; stroke-width:0.01\"/>" << endl;
   polyfile << "</svg>" << endl;
   polyfile.close();
 }
