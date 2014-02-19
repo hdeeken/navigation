@@ -260,7 +260,7 @@ void Costmap2DROS::writePolygonToSVG(std::vector<geometry_msgs::Point>& polygon,
   { 
     polyfile << polygon[i].x << " " << polygon[i].y << ", ";
   }
-  polyfile << polygon[polygon.size()-1].x << " " << polygon[polygon.size()-1] << "\" style=\"fill:lime; stroke-width:0.01\"/>" << endl;
+  polyfile << polygon[polygon.size()-1].x << " " << polygon[polygon.size()-1].y << "\" style=\"fill:lime; stroke-width:0.01\"/>" << endl;
   polyfile << "</svg>" << endl;
   polyfile.close();
 }
