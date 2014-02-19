@@ -168,7 +168,7 @@ Costmap2DROS::Costmap2DROS(std::string name, tf::TransformListener& tf) :
             mesh_vector.push_back(mesh_ptr);
             std::vector<geometry_msgs::Point> convex_of_mesh;
             getConvexHull(mesh_vector, convex_of_mesh);
-            std::string filename_mesh = name_ + std::string("_convex_hull_link_") + boost::lexical_cast<std::string>(i) + std::string(".svg");
+            std::string filename_mesh = name_ + std::string("_convex_hull_link_") + *it + boost::lexical_cast<std::string>(i) + std::string(".svg");
             writePolygonToSVG(convex_of_mesh, filename_mesh);
           }
         }
