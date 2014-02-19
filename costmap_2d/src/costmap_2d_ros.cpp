@@ -82,6 +82,35 @@ Costmap2DROS::Costmap2DROS(std::string name, tf::TransformListener& tf) :
   private_nh.param("publish_raw_data", publish_raw_data_, false);
 
 
+
+  // make sure that we set the frames appropriately based on the tf_prefix
+  global_frame_ = tf::resolve(tf_prefix, global_frame_);
+  robot_base_frame_ = tf::resolve(tf_prefix, robot_base_frame_);
+
+  ros::Time last_error = ros::Time::now();
+  std::string tf_error;
+  // we need to make sure that the transform between the robot base frame and the global frame is available
+
+  while (ros::ok()
+      && !tf_.waitForTransform(global_frame_, robot_base_frame_, ros::Time(), ros::Duration(0.1), ros::Duration(0.01),
+        &tf_error))
+  {
+    ros::spinOnce();
+    if (last_error + ros::Duration(5.0) < ros::Time::now())
+    {
+      ROS_WARN("Waiting on transform from %s to %s to become available before running costmap, tf error: %s",
+          robot_base_frame_.c_str(), global_frame_.c_str(), tf_error.c_str());
+      last_error = ros::Time::now();
+    }
+  }
+
+  // check if we want a rolling window version of the costmap
+  bool rolling_window, track_unknown_space;
+  private_nh.param("rolling_window", rolling_window, false);
+  private_nh.param("track_unknown_space", track_unknown_space, false);
+
+  layered_costmap_ = new LayeredCostmap(global_frame_, rolling_window, track_unknown_space);
+
   // ################################
   // reads the footpinrt informations
 
@@ -96,7 +125,7 @@ Costmap2DROS::Costmap2DROS(std::string name, tf::TransformListener& tf) :
 
   // dynamic and static footprint via the robot model 
 
-   ROS_INFO("Type is %s", footprint_type_.c_str());
+  ROS_INFO("Type is %s", footprint_type_.c_str());
 
   if(footprint_type_.compare(type_dynamic) == 0 || footprint_type_.compare(type_static) == 0 )
   {
@@ -169,33 +198,6 @@ Costmap2DROS::Costmap2DROS(std::string name, tf::TransformListener& tf) :
   ROS_INFO("Finished Footprint reading.");
   // #################################
 
-  // make sure that we set the frames appropriately based on the tf_prefix
-  global_frame_ = tf::resolve(tf_prefix, global_frame_);
-  robot_base_frame_ = tf::resolve(tf_prefix, robot_base_frame_);
-
-  ros::Time last_error = ros::Time::now();
-  std::string tf_error;
-  // we need to make sure that the transform between the robot base frame and the global frame is available
-
-  while (ros::ok()
-      && !tf_.waitForTransform(global_frame_, robot_base_frame_, ros::Time(), ros::Duration(0.1), ros::Duration(0.01),
-        &tf_error))
-  {
-    ros::spinOnce();
-    if (last_error + ros::Duration(5.0) < ros::Time::now())
-    {
-      ROS_WARN("Waiting on transform from %s to %s to become available before running costmap, tf error: %s",
-          robot_base_frame_.c_str(), global_frame_.c_str(), tf_error.c_str());
-      last_error = ros::Time::now();
-    }
-  }
-
-  // check if we want a rolling window version of the costmap
-  bool rolling_window, track_unknown_space;
-  private_nh.param("rolling_window", rolling_window, false);
-  private_nh.param("track_unknown_space", track_unknown_space, false);
-
-  layered_costmap_ = new LayeredCostmap(global_frame_, rolling_window, track_unknown_space);
 
   if (!private_nh.hasParam("plugins"))
   {
@@ -259,7 +261,7 @@ void Costmap2DROS::getConvexHull(std::vector<shapes::Mesh*>& mesh, std::vector<g
     }
   }
 
-  ROS_INFO("Got %d points to compute footprint", points.size());
+  ROS_INFO("Got %d points to compute footprint", (int)points.size());
 
   if (points.size() < 3) {
     ROS_ERROR("Number of points from link meshes too small to compute footprint");
