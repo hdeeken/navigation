@@ -52,6 +52,9 @@
 #include <geometric_shapes/shapes.h>
 #include <geometric_shapes/mesh_operations.h>
 #include <opencv/cv.h>
+#include <Eigen/Core>
+#include <Eigen/Geometry>
+
 
 class SuperValue : public XmlRpc::XmlRpcValue
 {
@@ -254,6 +257,7 @@ private:
   bool readFootprintLinks( const ros::NodeHandle& nh );
   void getConvexHull( std::vector<shapes::Mesh*>& meshes, std::vector<geometry_msgs::Point>& convex_polygon);
   void writePolygonToSVG(std::vector<geometry_msgs::Point>& polygon, std::string& filename);
+  void transformMesh(const Eigen::Affine3d& transform, shapes::Mesh* mesh);
 
   /** @brief Set the footprint to a circle of the given radius, in meters. */
   void setFootprintFromRadius( double radius );

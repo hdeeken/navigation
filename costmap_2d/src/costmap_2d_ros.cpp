@@ -134,6 +134,10 @@ Costmap2DROS::Costmap2DROS(std::string name, tf::TransformListener& tf) :
     {
       std::string robot_description("robot_description");
       planning_scene_monitor::PlanningSceneMonitor psm(robot_description);
+      planning_scene_monitor::CurrentStateMonitorPtr csm_ptr = psm.getStateMonitor();
+      robot_state::RobotStatePtr robot_state_ptr = csm_ptr->getCurrentState();
+
+      
 
       robot_model::RobotModelConstPtr rm_ptr = psm.getRobotModel();      
       if(rm_ptr != NULL){
@@ -158,11 +162,16 @@ Costmap2DROS::Costmap2DROS(std::string name, tf::TransformListener& tf) :
             if(shape_ptr->type != shapes::MESH)
             {
               mesh_ptr = shapes::createMeshFromShape(shape_ptr);
+              
             }
             else
             {
-              mesh_ptr = (shapes::Mesh*)shape_ptr;
+              mesh_ptr = (shapes::Mesh*)shape_ptr->clone();
             }
+
+            const Eigen::Affine3d transform = robot_state_ptr->getGlobalLinkTransform(linkmodel_ptr);
+            transformMesh(transform, mesh_ptr);
+
             meshes.push_back(mesh_ptr);
             std::vector<shapes::Mesh*> mesh_vector;
             mesh_vector.push_back(mesh_ptr);
@@ -249,6 +258,31 @@ Costmap2DROS::Costmap2DROS(std::string name, tf::TransformListener& tf) :
       _2);
   dsrv_->setCallback(cb);
 }
+
+void Costmap2DROS::transformMesh(const Eigen::Affine3d& transform, shapes::Mesh* mesh)
+{
+  for (unsigned int i3 = 0; i3 < mesh->vertex_count; i3 += 3) {
+    Eigen::Matrix<double, 3, 1> pt (
+      mesh->vertices[i3], mesh->vertices[i3+1], mesh->vertices[i3+2]);
+    mesh->vertices[0] = 
+        transform (0, 0) * pt.coeffRef (0)
+      + transform (0, 1) * pt.coeffRef (1)
+      + transform (0, 2) * pt.coeffRef (2)
+      + transform (0, 3);
+
+    mesh->vertices[1] = 
+        transform (1, 0) * pt.coeffRef (0)
+      + transform (1, 1) * pt.coeffRef (1)
+      + transform (1, 2) * pt.coeffRef (2)
+      + transform (1, 3);
+
+    mesh->vertices[2] = 
+        transform (2, 0) * pt.coeffRef (0)
+      + transform (2, 1) * pt.coeffRef (1)
+      + transform (2, 2) * pt.coeffRef (2)
+      + transform (2, 3);
+  }
+} 
 
 void Costmap2DROS::writePolygonToSVG(std::vector<geometry_msgs::Point>& polygon, std::string& filename)
 {
