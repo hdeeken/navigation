@@ -256,6 +256,7 @@ private:
 
   bool readFootprintLinks( const ros::NodeHandle& nh );
   void getConvexHull( std::vector<shapes::Mesh*>& meshes, std::vector<geometry_msgs::Point>& convex_polygon);
+  void getConvexHullAndMinMaxZ(std::vector<shapes::Mesh*>& mesh, std::vector<geometry_msgs::Point>& polygon, double& min_z, double& max_z);
   void writePolygonToSVG(std::vector<geometry_msgs::Point>& polygon, std::string& filename);
   void transformMesh(const Eigen::Affine3d& transform, shapes::Mesh* mesh);
 
@@ -311,6 +312,9 @@ private:
   std::vector<geometry_msgs::Point> padded_footprint_;
   float footprint_padding_;
   costmap_2d::Costmap2DConfig old_config_;
+  
+ // void myfun( const sensor_msgs::JointStateConstPtr &);
+  
 };
 // class Costmap2DROS
 }// namespace costmap_2d

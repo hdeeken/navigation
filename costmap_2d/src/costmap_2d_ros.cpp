@@ -43,7 +43,7 @@
 #include <string>
 #include <algorithm>
 #include <vector>
-
+#include <geometry_msgs/PolygonStamped.h>
 
 using namespace std;
 
@@ -69,7 +69,8 @@ Costmap2DROS::Costmap2DROS(std::string name, tf::TransformListener& tf) :
 {
   ros::NodeHandle private_nh("~/" + name);
   ros::NodeHandle g_nh;
-
+ros::AsyncSpinner spinner(1);
+spinner.start();
   // get our tf prefix
   ros::NodeHandle prefix_nh;
   std::string tf_prefix = tf::getPrefixParam(prefix_nh);
@@ -81,7 +82,7 @@ Costmap2DROS::Costmap2DROS(std::string name, tf::TransformListener& tf) :
   // publish the raw data
   private_nh.param("publish_raw_data", publish_raw_data_, false);
 
-
+boost::shared_ptr<tf::Transformer> transformer(new tf::Transformer(true, ros::Duration(2.0)));
 
   // make sure that we set the frames appropriately based on the tf_prefix
   global_frame_ = tf::resolve(tf_prefix, global_frame_);
@@ -120,6 +121,9 @@ Costmap2DROS::Costmap2DROS(std::string name, tf::TransformListener& tf) :
   const std::string type_manual("manual");
   const std::string type_topic("topic");
 
+ros::Publisher poly_publisher;
+	poly_publisher = g_nh.advertise<geometry_msgs::PolygonStamped>("footprint_from_state", 1 );
+
   // defines the footprint type, default is 'manual'. 
   private_nh.param("footprint_type", footprint_type_, type_manual );
 
@@ -129,24 +133,36 @@ Costmap2DROS::Costmap2DROS(std::string name, tf::TransformListener& tf) :
 
   if(footprint_type_.compare(type_dynamic) == 0 || footprint_type_.compare(type_static) == 0 )
   {
-   ROS_INFO("Type requires links");
+    ROS_INFO("Type requires links");
     if(readFootprintLinks(private_nh))
     {
+/*
+      boost::shared_ptr<robot_model_loader::RobotModelLoader> robot_model_loader_ptr(new robot_model_loader::RobotModelLoader("robot_description"));
+      //robot_model::RobotModelPtr kinematic_model = robot_model_loader.getModel();
+      ROS_INFO("HAVE READ FP");
       std::string robot_description("robot_description");
-      planning_scene_monitor::PlanningSceneMonitor psm(robot_description);
+      planning_scene_monitor::PlanningSceneMonitor psm(robot_model_loader_ptr, transformer, "");
+      ROS_INFO("HAVE PSM");
+      psm.startSceneMonitor("planning_scene");
+      //planning_scene_monitor::CurrentStateMonitor csm(kinematic_model, transformer);
       planning_scene_monitor::CurrentStateMonitorPtr csm_ptr = psm.getStateMonitor();
-      robot_state::RobotStatePtr robot_state_ptr = csm_ptr->getCurrentState();
-
+*/
+      robot_model_loader::RobotModelLoader robot_model_loader("robot_description");
+      robot_model::RobotModelPtr robot_model = robot_model_loader.getModel();
+      planning_scene_monitor::CurrentStateMonitor cs(robot_model, transformer);
+    //  cs.addUpdateCallback(boost::bind(Costmap2DROS::myfun, this , _1)); //&cs
+      cs.startStateMonitor();
       
-
-      robot_model::RobotModelConstPtr rm_ptr = psm.getRobotModel();      
-      if(rm_ptr != NULL){
+          robot_state::RobotStatePtr robot_state_ptr = cs.getCurrentState();
+    
+     // robot_model::RobotModelConstPtr rm_ptr = psm.getRobotModel();      
+      if(robot_state_ptr != NULL){
         const moveit::core::LinkModel* linkmodel_ptr;
         std::vector<shapes::Mesh*> meshes;
 
         for(std::vector<std::string>::iterator it = footprint_links_.begin(); it != footprint_links_.end(); ++it)
         {
-          linkmodel_ptr = rm_ptr->getLinkModel(*it);
+          linkmodel_ptr = robot_model->getLinkModel(*it);
           if(linkmodel_ptr == NULL)
           {
             ROS_WARN("The LinkModel '%s' was not found!", it->c_str());
@@ -182,29 +198,48 @@ Costmap2DROS::Costmap2DROS(std::string name, tf::TransformListener& tf) :
           }
         }
         std::vector<geometry_msgs::Point> convex_polygon;
-        getConvexHull(meshes, convex_polygon);
+        //getConvexHull(meshes, convex_polygon);
+        double min_z, max_z;
+		getConvexHullAndMinMaxZ(meshes, convex_polygon, min_z, max_z);
+		ROS_INFO("Min Z: %f Max: %f", min_z, max_z);
 
         std::string filename = name_ + std::string("_footprint.svg");
         writePolygonToSVG(convex_polygon, filename);
         setUnpaddedRobotFootprint(convex_polygon);
-      }
+        
+        geometry_msgs::PolygonStamped new_fp_poly;
+        for(int i = 0; i < convex_polygon.size(); i++)
+        {
+			geometry_msgs::Point32 p;
+			p.x = convex_polygon[i].x;
+			p.y = convex_polygon[i].y;
+			p.z = convex_polygon[i].z;
+			
+			new_fp_poly.polygon.points.push_back(p);
+		}
+		poly_publisher.publish(new_fp_poly);
+	}
+      /*
       else
       {
-        ROS_ERROR("No robot model for the robot describption '%s' found!", robot_description.c_str());
+        //ROS_ERROR("No robot model for the robot describption '%s' found!", robot_description.c_str());
       }
     }
     else
     {
       ROS_ERROR("Failed to load the footprint links!");
-    }
+    }*/
   }
   // footprint via topic
+  }
   else if(footprint_type_.compare(type_topic) == 0)
   {
+	   ROS_INFO("THIS1");
     // subscribe to the footprint topic
     std::string topic;
     if(private_nh.getParam("footprint_topic", topic))
     {
+	 ROS_INFO("THIS2");
       footprint_sub_ = private_nh.subscribe(topic, 1, &Costmap2DROS::setUnpaddedRobotFootprintPolygon, this);
     }
     else
@@ -215,6 +250,7 @@ Costmap2DROS::Costmap2DROS(std::string name, tf::TransformListener& tf) :
   // static footprint via the defined polygon in the parameter file
   else if(footprint_type_.compare(type_manual) == 0)
   {
+	   ROS_INFO("THIS3");
     readFootprintFromParams( private_nh );
   }
   ROS_INFO("Finished Footprint reading.");
@@ -254,10 +290,23 @@ Costmap2DROS::Costmap2DROS(std::string name, tf::TransformListener& tf) :
   timer_ = private_nh.createTimer(ros::Duration(.1), &Costmap2DROS::movementCB, this);
 
   dsrv_ = new dynamic_reconfigure::Server<Costmap2DConfig>(ros::NodeHandle("~/" + name));
-  dynamic_reconfigure::Server<Costmap2DConfig>::CallbackType cb = boost::bind(&Costmap2DROS::reconfigureCB, this, _1,
-      _2);
+  dynamic_reconfigure::Server<Costmap2DConfig>::CallbackType cb = boost::bind(&Costmap2DROS::reconfigureCB, this, _1, _2);
   dsrv_->setCallback(cb);
 }
+
+
+//void Costmap2DROS::myfun(const sensor_msgs::JointStateConstPtr &)
+//{
+
+//ROS_ERROR("GOt me some updates");
+///*// called when there are updates;
+//moveit::core::RobotStatePtr rs = cs->getCurrentState();
+//const Eigen::Affine3d &tf = rs->getLinkTansform(...);
+//...
+//*/
+
+//}
+
 
 void Costmap2DROS::transformMesh(const Eigen::Affine3d& transform, shapes::Mesh* mesh)
 {
@@ -329,6 +378,61 @@ void Costmap2DROS::getConvexHull(std::vector<shapes::Mesh*>& mesh, std::vector<g
         //pt.y = floor(point3d.y());
         pt.x = (*iter)->vertices[i3];
         pt.y = (*iter)->vertices[i3+1];
+        points.push_back(pt);
+      }
+    }
+  }
+
+  ROS_INFO("Got %d points to compute footprint", (int)points.size());
+
+  if (points.size() < 3) {
+    ROS_ERROR("Number of points from link meshes too small to compute footprint");
+    return;
+  }
+  std::vector<int> hull;
+  cv::convexHull(points, hull);
+  ROS_INFO("Convex hull of footprint computed, %d points", (int) hull.size());
+
+  for (unsigned int i = 0; i < hull.size(); ++i) {
+    geometry_msgs::Point p;
+    p.x = points[hull[i]].x;
+    p.y = points[hull[i]].y;
+    p.z = 0;
+    polygon.push_back(p);
+    ROS_INFO("%d is %f , %f ", i, points[hull[i]].x, points[hull[i]].y);
+  }
+}
+
+
+void Costmap2DROS::getConvexHullAndMinMaxZ(std::vector<shapes::Mesh*>& mesh, std::vector<geometry_msgs::Point>& polygon, double& min_z, double& max_z)
+{
+  min_z = DBL_MAX;
+  max_z = DBL_MIN;
+  
+  polygon.clear();
+
+  std::vector<cv::Point2f> points;
+
+  for(std::vector<shapes::Mesh*>::iterator iter = mesh.begin();
+      iter != mesh.end(); ++iter)
+  {
+    if ((*iter)->vertex_count > 0 && (*iter)->triangle_count > 0) {
+      //const btTransform& trans = ls->getGlobalCollisionBodyTransform();
+      for (unsigned int i = 0; i < (*iter)->vertex_count; ++i) {
+        unsigned int i3 = i * 3;
+        //tf::Vector3 point3d((*iter)->vertices[i3], (*iter)->vertices[i3 + 1], (*iter)->vertices[i3 + 2]);
+        //point3d = trans * point3d;
+        cv::Point2f pt;
+        //pt.x = floor(point3d.x());
+        //pt.y = floor(point3d.y());
+        pt.x = (*iter)->vertices[i3];
+        pt.y = (*iter)->vertices[i3+1];
+        double z = (*iter)->vertices[i3+2];
+        if(z < min_z)
+           min_z = z;
+        if(z > max_z)
+           max_z = z;
+        
         points.push_back(pt);
       }
     }
@@ -496,6 +600,11 @@ void Costmap2DROS::resetOldParameters(ros::NodeHandle& nh)
 
 void Costmap2DROS::reconfigureCB(costmap_2d::Costmap2DConfig &config, uint32_t level)
 {
+  const std::string type_dynamic("dynamic");
+  const std::string type_static("static");
+  const std::string type_manual("manual");
+  const std::string type_topic("topic");
+	
   transform_tolerance_ = config.transform_tolerance;
   if (map_update_thread_ != NULL)
   {
@@ -523,16 +632,20 @@ void Costmap2DROS::reconfigureCB(costmap_2d::Costmap2DConfig &config, uint32_t l
         (unsigned int)(map_height_meters / resolution), resolution, origin_x, origin_y);
   }
 
-  // If the padding has changed, call setUnpaddedRobotFootprint() to
-  // re-apply the padding.
-  if( footprint_padding_ != config.footprint_padding )
+  if(!(footprint_type_.compare(type_dynamic) == 0 || footprint_type_.compare(type_static) == 0 ))
   {
-    footprint_padding_ = config.footprint_padding;
-    setUnpaddedRobotFootprint( unpadded_footprint_ );
-  }
 
-  readFootprintFromConfig( config, old_config_ );
+	  // If the padding has changed, call setUnpaddedRobotFootprint() to
+	  // re-apply the padding.
+	  if( footprint_padding_ != config.footprint_padding )
+	  {
+		footprint_padding_ = config.footprint_padding;
+		ROS_INFO("Die uni bringt nichts");
+		setUnpaddedRobotFootprint( unpadded_footprint_ );
+	  }
 
+	  readFootprintFromConfig( config, old_config_ );
+}
   old_config_ = config;
 
   map_update_thread_ = new boost::thread(boost::bind(&Costmap2DROS::mapUpdateLoop, this, map_update_frequency));
@@ -557,6 +670,7 @@ void Costmap2DROS::readFootprintFromConfig( const costmap_2d::Costmap2DConfig &n
   }
   else
   {
+	  ROS_INFO("OFNI");
     // robot_radius may be 0, but that must be intended at this point.
     setFootprintFromRadius( new_config.robot_radius );
   }
@@ -598,7 +712,7 @@ bool Costmap2DROS::readFootprintFromString( const std::string& footprint_string 
       return false;
     }
   }
-
+	ROS_INFO("S");
   setUnpaddedRobotFootprint( points );
   return true;
 }
@@ -619,6 +733,7 @@ void Costmap2DROS::setFootprintFromRadius( double radius )
     points.push_back( pt );
   }
 
+ROS_INFO("SAS");
   setUnpaddedRobotFootprint( points );
 }
 
@@ -647,6 +762,7 @@ void Costmap2DROS::readFootprintFromParams( ros::NodeHandle& nh )
   }
   else if( nh.searchParam( "robot_radius", full_radius_param_name ))
   {
+	  ROS_INFO("RADIUS");
     double robot_radius;
     nh.param( full_radius_param_name, robot_radius, 1.234 );
     setFootprintFromRadius( robot_radius );
@@ -723,6 +839,7 @@ void Costmap2DROS::readFootprintFromXMLRPC( XmlRpc::XmlRpcValue& footprint_xmlrp
 
     footprint.push_back( pt );
   }
+  ROS_INFO("HAO");
   setUnpaddedRobotFootprint( footprint );
 }
 

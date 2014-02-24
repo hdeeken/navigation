@@ -150,9 +150,12 @@ void LayeredCostmap::setFootprint(const std::vector<geometry_msgs::Point>& footp
   footprint_ = footprint_spec;
   costmap_2d::calculateMinAndMaxDistances( footprint_spec, inscribed_radius_, circumscribed_radius_ );
 
+  ROS_INFO("Calcuated radii - inscribed: %f circumscribed: %f", inscribed_radius_, circumscribed_radius_ );
+
   for (vector<boost::shared_ptr<Layer> >::iterator plugin = plugins_.begin(); plugin != plugins_.end();
       ++plugin)
   {
+	  ROS_INFO("Update on Plugin %s", (*plugin)->getName().c_str());
     (*plugin)->onFootprintChanged();
   }  
   ROS_INFO("LayeredCostmap: Done with setFootprint ()");
