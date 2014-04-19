@@ -23,7 +23,7 @@ InflationLayer::InflationLayer()
 
 void InflationLayer::onInitialize()
 {
-  {
+	ROS_INFO( "InflationLayer::onInitialize end");
     boost::unique_lock < boost::shared_mutex > lock(*access_);
     ros::NodeHandle nh("~/" + name_), g_nh;
     current_ = true;
@@ -42,14 +42,14 @@ void InflationLayer::onInitialize()
       dsrv_ = new dynamic_reconfigure::Server<costmap_2d::InflationPluginConfig>(ros::NodeHandle("~/" + name_));
       dsrv_->setCallback(cb);
     }
-
-  }
-
+    
   matchSize();
+ROS_INFO( "InflationLayer::onInitialize end");
 }
 
 void InflationLayer::reconfigureCB(costmap_2d::InflationPluginConfig &config, uint32_t level)
 {
+	ROS_INFO( "InflationLayer::reconfigureCB");
   if (weight_ != config.cost_scaling_factor || inflation_radius_ != config.inflation_radius)
   {
     inflation_radius_ = config.inflation_radius;
@@ -63,10 +63,12 @@ void InflationLayer::reconfigureCB(costmap_2d::InflationPluginConfig &config, ui
     enabled_ = config.enabled;
     need_reinflation_ = true;
   }
+  ROS_INFO( "InflationLayer::reconfigureCB end");
 }
 
 void InflationLayer::matchSize()
 {
+	ROS_INFO( "InflationLayer::matchSize");
   boost::unique_lock < boost::shared_mutex > lock(*access_);
   costmap_2d::Costmap2D* costmap = layered_costmap_->getCostmap();
   resolution_ = costmap->getResolution();
@@ -77,11 +79,13 @@ void InflationLayer::matchSize()
   if (seen_)
     delete seen_;
   seen_ = new bool[size_x * size_y];
+  ROS_INFO( "InflationLayer::matchSize end");
 }
 
 void InflationLayer::updateBounds(double robot_x, double robot_y, double robot_yaw, double* min_x,
                                            double* min_y, double* max_x, double* max_y)
 {
+	ROS_INFO( "InflationLayer::updateBounds");
   if( need_reinflation_ )
   {
     // For some reason when I make these -<double>::max() it does not
@@ -93,22 +97,27 @@ void InflationLayer::updateBounds(double robot_x, double robot_y, double robot_y
     *max_y = std::numeric_limits<float>::max();
     need_reinflation_ = false;
   }
+  ROS_INFO( "InflationLayer::updateBounds end");
 }
 
 void InflationLayer::onFootprintChanged()
 {
+  ROS_INFO( "InflationLayer::onFootprintChanged");
   inscribed_radius_ = layered_costmap_->getInscribedRadius();
   cell_inflation_radius_ = cellDistance( inflation_radius_ );
   computeCaches();
   need_reinflation_ = true;
 
-  ROS_DEBUG( "InflationLayer::onFootprintChanged(): num footprint points: %lu, inscribed_radius_ = %.3f, inflation_radius_ = %.3f",
+  ROS_INFO( "InflationLayer::onFootprintChanged(): num footprint points: %lu, inscribed_radius_ = %.3f, inflation_radius_ = %.3f",
              layered_costmap_->getFootprint().size(), inscribed_radius_, inflation_radius_ );
+             
+  ROS_INFO( "InflationLayer::onFootprintChanged end");
 }
 
 void InflationLayer::updateCosts(costmap_2d::Costmap2D& master_grid, int min_i, int min_j, int max_i,
                                           int max_j)
 {
+  ROS_INFO( "InflationLayer::updateCosts");
   boost::unique_lock < boost::shared_mutex > lock(*access_);
   if (!enabled_)
     return;
@@ -172,6 +181,7 @@ void InflationLayer::updateCosts(costmap_2d::Costmap2D& master_grid, int min_i, 
     //remove the current cell from the priority queue
     inflation_queue_.pop();
   }
+  ROS_INFO( "InflationLayer::updateCosts end");
 }
 
 /**
@@ -185,7 +195,7 @@ void InflationLayer::updateCosts(costmap_2d::Costmap2D& master_grid, int min_i, 
 inline void InflationLayer::enqueue(unsigned char* grid, unsigned int index, unsigned int mx, unsigned int my,
                                             unsigned int src_x, unsigned int src_y)
 {
-
+  ROS_INFO( "InflationLayer::enqueue");
   //set the cost of the cell being inserted
   if (!seen_[index])
   {
@@ -209,10 +219,12 @@ inline void InflationLayer::enqueue(unsigned char* grid, unsigned int index, uns
     CellData data(distance, index, mx, my, src_x, src_y);
     inflation_queue_.push(data);
   }
+  ROS_INFO( "InflationLayer::enqueue end");
 }
 
 void InflationLayer::computeCaches()
 {
+	ROS_INFO( "InflationLayer::computeCaches");
   if(cell_inflation_radius_ == 0)
     return;
 
@@ -245,10 +257,12 @@ void InflationLayer::computeCaches()
       cached_costs_[i][j] = computeCost(cached_distances_[i][j]);
     }
   }
+  ROS_INFO( "InflationLayer::computeCaches end");
 }
 
 void InflationLayer::deleteKernels()
 {
+	ROS_INFO( "InflationLayer::deleteKernels");
   if (cached_distances_ != NULL)
   {
     for (unsigned int i = 0; i <= cached_cell_inflation_radius_ + 1; ++i)
@@ -266,6 +280,7 @@ void InflationLayer::deleteKernels()
     }
     delete[] cached_costs_;
   }
+  ROS_INFO( "InflationLayer::deleteKernels end");
 }
 
 } // end namespace costmap_2d
