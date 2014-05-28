@@ -201,7 +201,7 @@ ros::Publisher poly_publisher;
         //getConvexHull(meshes, convex_polygon);
         double min_z, max_z;
 		getConvexHullAndMinMaxZ(meshes, convex_polygon, min_z, max_z);
-		ROS_INFO("Min Z: %f Max: %f", min_z, max_z);
+		//ROS_INFO("Min Z: %f Max: %f", min_z, max_z);
 
         std::string filename = name_ + std::string("_footprint.svg");
         writePolygonToSVG(convex_polygon, filename);
@@ -234,12 +234,12 @@ ros::Publisher poly_publisher;
   }
   else if(footprint_type_.compare(type_topic) == 0)
   {
-	   ROS_INFO("THIS1");
+	//   ROS_INFO("THIS1");
     // subscribe to the footprint topic
     std::string topic;
     if(private_nh.getParam("footprint_topic", topic))
     {
-	 ROS_INFO("THIS2");
+	 //ROS_INFO("THIS2");
       footprint_sub_ = private_nh.subscribe(topic, 1, &Costmap2DROS::setUnpaddedRobotFootprintPolygon, this);
     }
     else
@@ -250,12 +250,11 @@ ros::Publisher poly_publisher;
   // static footprint via the defined polygon in the parameter file
   else if(footprint_type_.compare(type_manual) == 0)
   {
-	   ROS_INFO("THIS3");
+	   //ROS_INFO("THIS3");
     readFootprintFromParams( private_nh );
   }
   ROS_INFO("Finished Footprint reading.");
   // #################################
-
 
   if (!private_nh.hasParam("plugins"))
   {
@@ -275,6 +274,7 @@ ros::Publisher poly_publisher;
       boost::shared_ptr<Layer> plugin = plugin_loader_.createInstance(type);
       layered_costmap_->addPlugin(plugin);
       plugin->initialize(layered_costmap_, name + "/" + pname, &tf_);
+      ROS_INFO("Initialized %s", pname.c_str());
     }
   }
 
@@ -292,6 +292,8 @@ ros::Publisher poly_publisher;
   dsrv_ = new dynamic_reconfigure::Server<Costmap2DConfig>(ros::NodeHandle("~/" + name));
   dynamic_reconfigure::Server<Costmap2DConfig>::CallbackType cb = boost::bind(&Costmap2DROS::reconfigureCB, this, _1, _2);
   dsrv_->setCallback(cb);
+
+	ROS_INFO("CostMap INIT IS DONE!");
 }
 
 
@@ -438,7 +440,7 @@ void Costmap2DROS::getConvexHullAndMinMaxZ(std::vector<shapes::Mesh*>& mesh, std
     }
   }
 
-  ROS_INFO("Got %d points to compute footprint", (int)points.size());
+ // ROS_INFO("Got %d points to compute footprint", (int)points.size());
 
   if (points.size() < 3) {
     ROS_ERROR("Number of points from link meshes too small to compute footprint");
@@ -446,7 +448,7 @@ void Costmap2DROS::getConvexHullAndMinMaxZ(std::vector<shapes::Mesh*>& mesh, std
   }
   std::vector<int> hull;
   cv::convexHull(points, hull);
-  ROS_INFO("Convex hull of footprint computed, %d points", (int) hull.size());
+  //ROS_INFO("Convex hull of footprint computed, %d points", (int) hull.size());
 
   for (unsigned int i = 0; i < hull.size(); ++i) {
     geometry_msgs::Point p;
@@ -454,7 +456,7 @@ void Costmap2DROS::getConvexHullAndMinMaxZ(std::vector<shapes::Mesh*>& mesh, std
     p.y = points[hull[i]].y;
     p.z = 0;
     polygon.push_back(p);
-    ROS_INFO("%d is %f , %f ", i, points[hull[i]].x, points[hull[i]].y);
+    //ROS_INFO("%d is %f , %f ", i, points[hull[i]].x, points[hull[i]].y);
   }
 }
 
@@ -640,7 +642,7 @@ void Costmap2DROS::reconfigureCB(costmap_2d::Costmap2DConfig &config, uint32_t l
 	  if( footprint_padding_ != config.footprint_padding )
 	  {
 		footprint_padding_ = config.footprint_padding;
-		ROS_INFO("Die uni bringt nichts");
+		//ROS_INFO("Die uni bringt nichts");
 		setUnpaddedRobotFootprint( unpadded_footprint_ );
 	  }
 
@@ -670,7 +672,7 @@ void Costmap2DROS::readFootprintFromConfig( const costmap_2d::Costmap2DConfig &n
   }
   else
   {
-	  ROS_INFO("OFNI");
+	//  ROS_INFO("OFNI");
     // robot_radius may be 0, but that must be intended at this point.
     setFootprintFromRadius( new_config.robot_radius );
   }
@@ -733,7 +735,7 @@ void Costmap2DROS::setFootprintFromRadius( double radius )
     points.push_back( pt );
   }
 
-ROS_INFO("SAS");
+//ROS_INFO("SAS");
   setUnpaddedRobotFootprint( points );
 }
 
@@ -762,7 +764,7 @@ void Costmap2DROS::readFootprintFromParams( ros::NodeHandle& nh )
   }
   else if( nh.searchParam( "robot_radius", full_radius_param_name ))
   {
-	  ROS_INFO("RADIUS");
+	 // ROS_INFO("RADIUS");
     double robot_radius;
     nh.param( full_radius_param_name, robot_radius, 1.234 );
     setFootprintFromRadius( robot_radius );
@@ -839,7 +841,7 @@ void Costmap2DROS::readFootprintFromXMLRPC( XmlRpc::XmlRpcValue& footprint_xmlrp
 
     footprint.push_back( pt );
   }
-  ROS_INFO("HAO");
+ // ROS_INFO("HAO");
   setUnpaddedRobotFootprint( footprint );
 }
 

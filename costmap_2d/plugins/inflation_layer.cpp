@@ -42,9 +42,8 @@ void InflationLayer::onInitialize()
       dsrv_ = new dynamic_reconfigure::Server<costmap_2d::InflationPluginConfig>(ros::NodeHandle("~/" + name_));
       dsrv_->setCallback(cb);
     }
-    
-  matchSize();
-ROS_INFO( "InflationLayer::onInitialize end");
+    matchSize();
+    ROS_INFO( "InflationLayer::onInitialize end");
 }
 
 void InflationLayer::reconfigureCB(costmap_2d::InflationPluginConfig &config, uint32_t level)
@@ -69,15 +68,20 @@ void InflationLayer::reconfigureCB(costmap_2d::InflationPluginConfig &config, ui
 void InflationLayer::matchSize()
 {
 	ROS_INFO( "InflationLayer::matchSize");
-  boost::unique_lock < boost::shared_mutex > lock(*access_);
+  //boost::unique_lock < boost::shared_mutex > lock(*access_);
+    ROS_INFO("got mutex");
   costmap_2d::Costmap2D* costmap = layered_costmap_->getCostmap();
+    ROS_INFO("got costmap");
   resolution_ = costmap->getResolution();
+  ROS_INFO("got res: %f", resolution_);
   cell_inflation_radius_ = cellDistance(inflation_radius_);
+  ROS_INFO("got radius: %f", cell_inflation_radius_);
   computeCaches();
-
+  ROS_INFO("caching done");
   unsigned int size_x = costmap->getSizeInCellsX(), size_y = costmap->getSizeInCellsY();
   if (seen_)
     delete seen_;
+  ROS_INFO( "size, x %d y %d", size_x, size_y);
   seen_ = new bool[size_x * size_y];
   ROS_INFO( "InflationLayer::matchSize end");
 }
@@ -120,16 +124,22 @@ void InflationLayer::updateCosts(costmap_2d::Costmap2D& master_grid, int min_i, 
   ROS_INFO( "InflationLayer::updateCosts");
   boost::unique_lock < boost::shared_mutex > lock(*access_);
   if (!enabled_)
-    return;
-
+  {  ROS_WARN("not enabled");
+	  return;
+  }
+	ROS_INFO( "locked");
   //make sure the inflation queue is empty at the beginning of the cycle (should always be true)
   ROS_ASSERT_MSG(inflation_queue_.empty(), "The inflation queue must be empty at the beginning of inflation");
 
+ROS_INFO( "get master");
   unsigned char* master_array = master_grid.getCharMap();
+  ROS_INFO( "get size");
   unsigned int size_x = master_grid.getSizeInCellsX(), size_y = master_grid.getSizeInCellsY();
+ROS_INFO( "isokay, x %d y %d", size_x, size_y);
 
+ROS_INFO("seen: %s", seen_ ? "true" : "false");
   memset(seen_, false, size_x * size_y * sizeof(bool));
-
+ROS_INFO( "memset");
   // We need to include in the inflation cells outside the bounding
   // box min_i...max_j, by the amount cell_inflation_radius_.  Cells
   // up to that distance outside the box can still influence the costs
@@ -143,7 +153,7 @@ void InflationLayer::updateCosts(costmap_2d::Costmap2D& master_grid, int min_i, 
   min_j = std::max( 0, min_j );
   max_i = std::min( int( size_x  ), max_i );
   max_j = std::min( int( size_y  ), max_j );
-
+ROS_INFO( "iterate");
   for (int j = min_j; j < max_j; j++)
   {
     for (int i = min_i; i < max_i; i++)
@@ -156,7 +166,7 @@ void InflationLayer::updateCosts(costmap_2d::Costmap2D& master_grid, int min_i, 
       }
     }
   }
-
+ROS_INFO( "while");
   while (!inflation_queue_.empty())
   {
     //get the highest priority cell and pop it off the priority queue
@@ -195,7 +205,7 @@ void InflationLayer::updateCosts(costmap_2d::Costmap2D& master_grid, int min_i, 
 inline void InflationLayer::enqueue(unsigned char* grid, unsigned int index, unsigned int mx, unsigned int my,
                                             unsigned int src_x, unsigned int src_y)
 {
-  ROS_INFO( "InflationLayer::enqueue");
+//  ROS_INFO( "InflationLayer::enqueue");
   //set the cost of the cell being inserted
   if (!seen_[index])
   {
@@ -219,7 +229,7 @@ inline void InflationLayer::enqueue(unsigned char* grid, unsigned int index, uns
     CellData data(distance, index, mx, my, src_x, src_y);
     inflation_queue_.push(data);
   }
-  ROS_INFO( "InflationLayer::enqueue end");
+ // ROS_INFO( "InflationLayer::enqueue end");
 }
 
 void InflationLayer::computeCaches()
