@@ -47,6 +47,7 @@ char* Costmap2DPublisher::cost_translation_table_ = NULL;
 Costmap2DPublisher::Costmap2DPublisher(ros::NodeHandle * ros_node, Costmap2D* costmap, std::string global_frame, std::string topic_name, bool always_send_full_costmap, bool publish_raw_data) :
     node(ros_node), costmap_(costmap), global_frame_(global_frame), active_(false), always_send_full_costmap_(always_send_full_costmap), publish_raw_data_(publish_raw_data)
 {
+	ROS_INFO("CM2d PUB _INIT)");
   costmap_pub_ = ros_node->advertise<nav_msgs::OccupancyGrid>( topic_name, 1, boost::bind( &Costmap2DPublisher::onNewSubscription, this, _1 ));
   costmap_update_pub_ = ros_node->advertise<map_msgs::OccupancyGridUpdate>( topic_name + "_updates", 1 );
 
@@ -67,6 +68,7 @@ Costmap2DPublisher::Costmap2DPublisher(ros::NodeHandle * ros_node, Costmap2D* co
       cost_translation_table_[ i ] = char( 1 + (97 * ( i - 1 )) / 251 );
     }
   }
+  ROS_INFO("CM2d PUB _END");
 }
 
 Costmap2DPublisher::~Costmap2DPublisher()
@@ -82,7 +84,9 @@ void Costmap2DPublisher::onNewSubscription( const ros::SingleSubscriberPublisher
 // prepare grid_ message for publication.
 void Costmap2DPublisher::prepareGrid()
 {
+	ROS_INFO("hi");
   boost::shared_lock < boost::shared_mutex > lock(*(costmap_->getLock()));
+  ROS_INFO("ho");
   double resolution = costmap_->getResolution();
 
   grid_.header.frame_id = global_frame_;
@@ -99,6 +103,7 @@ void Costmap2DPublisher::prepareGrid()
   grid_.info.origin.position.z = 0.0;
   grid_.info.origin.orientation.w = 1.0;
 
+ROS_INFO("so");
   grid_.data.resize(grid_.info.width * grid_.info.height);
 
   unsigned char* data = costmap_->getCharMap();
@@ -115,19 +120,24 @@ void Costmap2DPublisher::prepareGrid()
       grid_.data[i] = cost_translation_table_[ data[ i ]];
     }
   }
+  ROS_INFO("endprepare");
 }
 
 void Costmap2DPublisher::publishCostmap()
 {
+	ROS_INFO("CM2dPub::publishCostmap");
   double resolution = costmap_->getResolution();
 
   if (always_send_full_costmap_ || grid_.info.resolution != resolution || grid_.info.width != costmap_->getSizeInCellsX())
   {
+	  ROS_INFO("1");
     prepareGrid();
+      ROS_INFO("232");
     costmap_pub_.publish( grid_ );
   }
   else if (x0_ < xn_)
   {
+	  ROS_INFO("12");
     boost::shared_lock < boost::shared_mutex > lock(*(costmap_->getLock()));
     // Publish Just an Update
     map_msgs::OccupancyGridUpdate update;
@@ -160,12 +170,14 @@ void Costmap2DPublisher::publishCostmap()
         }
       }
     }
+    ROS_INFO("raus");
     costmap_update_pub_.publish(update);
   }
 
   xn_ = yn_ = 0;
   x0_ = costmap_->getSizeInCellsX();
   y0_ = costmap_->getSizeInCellsY();
+  ROS_INFO("END PublisheCostmap");
 }
 
 } // end namespace costmap_2d

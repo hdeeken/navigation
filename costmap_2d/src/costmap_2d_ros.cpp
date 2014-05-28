@@ -277,8 +277,8 @@ ros::Publisher poly_publisher;
       ROS_INFO("Initialized %s", pname.c_str());
     }
   }
-
-  publisher_ = new Costmap2DPublisher(&private_nh, layered_costmap_->getCostmap(), global_frame_, "costmap", false, publish_raw_data_);
+ // always_full_map was FALSE before
+  publisher_ = new Costmap2DPublisher(&private_nh, layered_costmap_->getCostmap(), global_frame_, "costmap", true, publish_raw_data_);
 
   // create a thread to handle updating the map
   stop_updates_ = false;
@@ -308,7 +308,6 @@ ros::Publisher poly_publisher;
 //*/
 
 //}
-
 
 void Costmap2DROS::transformMesh(const Eigen::Affine3d& transform, shapes::Mesh* mesh)
 {
@@ -892,6 +891,7 @@ void Costmap2DROS::movementCB(const ros::TimerEvent &event)
 
 void Costmap2DROS::mapUpdateLoop(double frequency)
 {
+	ROS_INFO("CM2DROS::mapUpLoop START");
   // the user might not want to run the loop every cycle
   if (frequency == 0.0)
     return;
@@ -905,12 +905,12 @@ void Costmap2DROS::mapUpdateLoop(double frequency)
     gettimeofday(&start, NULL);
 
     updateMap();
-
+ROS_INFO("CM2DROS::after");
     gettimeofday(&end, NULL);
     start_t = start.tv_sec + double(start.tv_usec) / 1e6;
     end_t = end.tv_sec + double(end.tv_usec) / 1e6;
     t_diff = end_t - start_t;
-    ROS_DEBUG("Map update time: %.9f", t_diff);
+    ROS_INFO("Map update time: %.9f", t_diff); //was DEBUG
     if (publish_cycle.toSec() > 0 and layered_costmap_->isInitialized())
     {
       unsigned int x0, y0, xn, yn;
@@ -919,32 +919,41 @@ void Costmap2DROS::mapUpdateLoop(double frequency)
 
       for(int i = 0; i < layer_publisher_.size(); i++)
       {
+		  ROS_INFO("CM2DROS::loop");
         layer_publisher_[i]->updateBounds(x0, xn, y0, yn);
       } 
 
       ros::Time now = ros::Time::now();
+      ROS_INFO("CM2DROS::pub");
       if (last_publish_ + publish_cycle < now)
       {
+		  	 ROS_INFO("CM2DROS::vor pub");
         publisher_->publishCostmap();
-
+ROS_INFO("CM2DROS::vornach");
         for(int i = 0; i < layer_publisher_.size(); i++)
         {
+			 ROS_INFO("CM2DROS::loop2");
           layer_publisher_[i]->publishCostmap();
         } 
 
         last_publish_ = now;
       }
     }
+     ROS_INFO("CM2DROS::soo");
     r.sleep();
+     ROS_INFO("CM2DROS::sllo");
     // make sure to sleep for the remainder of our cycle time
     if (r.cycleTime() > ros::Duration(1 / frequency))
-      ROS_WARN("Map update loop missed its desired rate of %.4fHz... the loop actually took %.4f seconds", frequency,
+      {ROS_WARN("Map update loop missed its desired rate of %.4fHz... the loop actually took %.4f seconds", frequency,
           r.cycleTime().toSec());
+           ROS_INFO("CM2DROS::pub");}
   }
+ROS_INFO("CM2DROS::mapUpLoop END");
 }
 
 void Costmap2DROS::updateMap()
 {
+	ROS_INFO("CM2DROS::updateMap START");
   if (!stop_updates_)
   {
     //get global pose
@@ -955,10 +964,12 @@ void Costmap2DROS::updateMap()
       initialized_ = true;
     }
   }
+  ROS_INFO("CM2DROS::updateMap END");
 }
 
 void Costmap2DROS::start()
 {
+	ROS_INFO("CM2DROS::start START");
   std::vector < boost::shared_ptr<Layer> > *plugins = layered_costmap_->getPlugins();
   // check if we're stopped or just paused
   if (stopped_)
@@ -977,6 +988,8 @@ void Costmap2DROS::start()
   ros::Rate r(100.0);
   while (ros::ok() && !initialized_)
     r.sleep();
+  
+  ROS_INFO("CM2DROS::start END");
 }
 
 void Costmap2DROS::stop()

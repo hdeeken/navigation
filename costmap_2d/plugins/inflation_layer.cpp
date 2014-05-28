@@ -68,7 +68,8 @@ void InflationLayer::reconfigureCB(costmap_2d::InflationPluginConfig &config, ui
 void InflationLayer::matchSize()
 {
 	ROS_INFO( "InflationLayer::matchSize");
-  //boost::unique_lock < boost::shared_mutex > lock(*access_);
+  // hsould be included, however excluding this makes it run further
+//  boost::unique_lock < boost::shared_mutex > lock(*access_);
     ROS_INFO("got mutex");
   costmap_2d::Costmap2D* costmap = layered_costmap_->getCostmap();
     ROS_INFO("got costmap");

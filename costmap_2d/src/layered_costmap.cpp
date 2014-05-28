@@ -77,7 +77,7 @@ void LayeredCostmap::resizeMap(unsigned int size_x, unsigned int size_y, double 
 
 void LayeredCostmap::updateMap(double robot_x, double robot_y, double robot_yaw)
 {
-
+ROS_INFO("LCM - updateMap START");
   // if we're using a rolling buffer costmap... we need to update the origin using the robot's position
   if (rolling_window_)
   {
@@ -129,7 +129,7 @@ void LayeredCostmap::updateMap(double robot_x, double robot_y, double robot_yaw)
   byn_ = yn;
 
   initialized_ = true;
-
+ROS_INFO("LCM - updateMap END");
 }
 
 bool LayeredCostmap::isCurrent()
